@@ -19,7 +19,7 @@ def get_outbound_bucket(application_name, verbose, error_bucket):
     
     if verbose:
         datestr = get_date()
-        print ("INFO: destination bucket name read from DynamoDB = %s at %s\n" % (bucket_name, datestr))  
+        print ("INFO: destination bucket name being returned = %s at %s\n" % (bucket_name, datestr))  
         
     return bucket_name
 

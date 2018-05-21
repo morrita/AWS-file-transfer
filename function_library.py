@@ -1,12 +1,26 @@
 # function_library.py
 
 
-def get_outbound_bucket(application_name, verbose, error_bucket):
+def check_public_s3_access(s3_client,bucket_name, verbose):
+    public_access = False
+    acl = s3_client.get_bucket_acl(Bucket=bucket_name)
+  
+    for i in range (len(acl['Grants'])):
+        if acl['Grants'][i]['Grantee']['Type'] == 'Group':
+            if acl['Grants'][i]['Grantee']['URI'] == 'http://acs.amazonaws.com/groups/global/AllUsers':
+                public_access = True
+                
+                if verbose:
+                    datestr = get_date()
+                    print ("ERROR: public %s permission on bucket %s detected at %s\n" % (acl['Grants'][i]['Permission'],bucket_name, datestr))       
+    return public_access
+
+def get_outbound_bucket(application_name, verbose, error_bucket,dynamodb_table, aws_region):
     import boto3
     from boto3.dynamodb.conditions import Key
     
-    dynamodb = boto3.resource('dynamodb', region_name='eu-west-2')
-    table = dynamodb.Table('TB_BUCKET_MAPPINGS')
+    dynamodb = boto3.resource('dynamodb', region_name=aws_region)
+    table = dynamodb.Table(dynamodb_table)
     response = table.query(KeyConditionExpression=Key('APPLICATION_NAME').eq(application_name))
     
     if response['Items']:       # valid response from database

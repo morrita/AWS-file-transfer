@@ -10,6 +10,7 @@ from function_library import delete_file
 from function_library import move_file
 from function_library import get_outbound_bucket
 from function_library import check_public_s3_access
+from function_library import check_public_access_allowed
   
 def lambda_handler(event, context):
     
@@ -35,7 +36,6 @@ def lambda_handler(event, context):
     application_name =   file_list[0]
     aws_region = 'eu-west-2'
     dynamodb_table = 'TB_BUCKET_MAPPINGS'
-  
     
     if application_name != file_name:  # application name found okay
         if verbose:
@@ -43,25 +43,29 @@ def lambda_handler(event, context):
             print ("INFO: application name read from filename string = %s at %s\n" % (application_name, datestr)) 
             
         destination_bucket_name = get_outbound_bucket(application_name=application_name, verbose=verbose, error_bucket=error_bucket_name, aws_region=aws_region,dynamodb_table=dynamodb_table)
+     
+        if destination_bucket_name != error_bucket_name:    # check for public access IF error bucket not selected
+            public_s3_allowed =  check_public_access_allowed(application_name=application_name, dynamodb_table=dynamodb_table, aws_region=aws_region, verbose=verbose)
+            
+            if check_public_s3_access(s3_client=s3_client, bucket_name=destination_bucket_name, verbose=verbose): # check public access on target bucket
+            
+                if not public_s3_allowed:
+                    destination_bucket_name = error_bucket_name # direct file destined for public folder to error bucket and log error
+                    datestr = get_date()
+                    print ("ERROR: public access detected on destination bucket %s - moving to bucket %s at %s\n" % (destination_bucket_name,error_bucket_name, datestr))    
         
     else:
         destination_bucket_name = error_bucket_name # direct file with no application name to error bucket and log error
         datestr = get_date()
-        print ("ERROR: application name not provide - moving to bucket %s at %s\n" % (error_bucket_name, datestr))   
+        print ("ERROR: application name not provide for filename %s - moving to bucket %s at %s\n" % (file_name, error_bucket_name, datestr))   
 
-
-    if check_public_s3_access(s3_client=s3_client, bucket_name=destination_bucket_name, verbose=verbose):
-        destination_bucket_name = error_bucket_name # direct file destined for public folder to error bucket and log error
-        datestr = get_date()
-        print ("ERROR: public access detected on destination bucket %s - moving to bucket %s at %s\n" % (destination_bucket_name,error_bucket_name, datestr))    
    
     if move_file(source_bucket=source_bucket_name, destination_bucket=destination_bucket_name, file_name=file_name, verbose=verbose, s3_client=s3_client, error_bucket=error_bucket_name):
         datestr = get_date()
-        print ("INFO: filename %s in bucket %s successfully moved to bucket %s at %s\n" % (file_name, source_bucket_name,destination_bucket_name, datestr))    
+        print ("INFO: filename %s in bucket %s successfully moved to bucket %s at %s\n" % (file_name, source_bucket_name, destination_bucket_name, datestr))    
         
     else:
         datestr = get_date()
         print ("ERROR: there was a problem processing filename %s in bucket %s at %s\n" % (file_name, source_bucket_name, datestr))   
         
     return 
-

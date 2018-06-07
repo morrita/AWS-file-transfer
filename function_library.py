@@ -1,7 +1,38 @@
 # function_library.py
 
 
-def check_public_s3_access(s3_client,bucket_name, verbose):
+def check_public_access_allowed(application_name, dynamodb_table, aws_region, verbose): 
+    import boto3
+    from boto3.dynamodb.conditions import Key
+    
+    public_access_allowed = False
+    
+    dynamodb = boto3.resource('dynamodb', region_name=aws_region)
+    table = dynamodb.Table(dynamodb_table)
+    response = table.query(KeyConditionExpression=Key('APPLICATION_NAME').eq(application_name))
+    
+    if response['Items']:       # valid response from database
+        if response['Items'][0]['PUBLIC_ACCESS_ALLOWED'].lower() == "true":
+             public_access_allowed = True
+             
+        else:
+            if verbose:
+                datestr = get_date()
+                print ("INFO: response = %s read from DynamoDB table %s for application %s at %s\n" % (response['Items'][0]['PUBLIC_ACCESS_ALLOWED'],application_name,dynamodb_table, datestr))  
+        
+    else:
+        if verbose:
+            datestr = get_date()
+            print ("ERROR: non-valid response read from DynamoDB table %s for application %s at %s\n" % (dynamodb_table, application_name, datestr))  
+    
+    if verbose:
+        datestr = get_date()
+        print ("INFO: public_access_allowed set to %s at %s\n" % (public_access_allowed, datestr))  
+    
+    return public_access_allowed
+
+
+def check_public_s3_access(s3_client, bucket_name, verbose):
     public_access = False
     acl = s3_client.get_bucket_acl(Bucket=bucket_name)
   
@@ -12,7 +43,7 @@ def check_public_s3_access(s3_client,bucket_name, verbose):
                 
                 if verbose:
                     datestr = get_date()
-                    print ("ERROR: public %s permission on bucket %s detected at %s\n" % (acl['Grants'][i]['Permission'],bucket_name, datestr))       
+                    print ("INFO: public %s permission on bucket %s detected at %s\n" % (acl['Grants'][i]['Permission'],bucket_name, datestr))       
     return public_access
 
 def get_outbound_bucket(application_name, verbose, error_bucket,dynamodb_table, aws_region):

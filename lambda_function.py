@@ -14,7 +14,6 @@ from function_library import check_public_access_allowed
   
 def lambda_handler(event, context):
     
-    
     # check for verbose flag environment variable and set appropriately
     if 'verbose' in os.environ:
          if os.environ['verbose'].lower() == 'true':    
@@ -27,20 +26,34 @@ def lambda_handler(event, context):
     
     s3_client = boto3.client('s3')
     error_bucket_name = 'error-filestore'
+    aws_region = 'eu-west-2'
+    dynamodb_table = 'TB_BUCKET_MAPPINGS'
     
     # event object created by s3 trigger and passed to lambda function
     # accessible as a dictionary
     source_bucket_name = event['Records'][0]['s3']['bucket']['name'] 
     file_name = event['Records'][0]['s3']['object']['key']
-    file_list = file_name.split('-')
+    
+    file_name_list = file_name.split('/')       # relevant if a sub-folder is used on in-bound bucket
+    
+    if len(file_name_list) > 1:  # at least sub-folder must be included
+        file_name_only = file_name_list[len(file_name_list) - 1] # filename to right of last '/'
+        
+    else:
+        file_name_only = file_name      # file_name_only string used to determine application name
+        
+    file_list = file_name_only.split('-')
     application_name =   file_list[0]
-    aws_region = 'eu-west-2'
-    dynamodb_table = 'TB_BUCKET_MAPPINGS'
+    
+    if verbose:
+        datestr = get_date()
+        print ("INFO: now processing filename %s at %s\n" % (file_name, datestr)) 
+    
     
     if application_name != file_name:  # application name found okay
         if verbose:
             datestr = get_date()
-            print ("INFO: application name read from filename string = %s at %s\n" % (application_name, datestr)) 
+            print ("INFO: application name read from file_name_only string %s = %s at %s\n" % (file_name_only, application_name, datestr)) 
             
         destination_bucket_name = get_outbound_bucket(application_name=application_name, verbose=verbose, error_bucket=error_bucket_name, aws_region=aws_region,dynamodb_table=dynamodb_table)
      
@@ -69,3 +82,4 @@ def lambda_handler(event, context):
         print ("ERROR: there was a problem processing filename %s in bucket %s at %s\n" % (file_name, source_bucket_name, datestr))   
         
     return 
+
